@@ -7,6 +7,7 @@ store uses Git to keep track of tiddler revisions
 from git import Repo
 from git.exc import InvalidGitRepositoryError
 
+from tiddlyweb.model.tiddler import Tiddler
 from tiddlyweb.stores.text import Store as TextStore
 from tiddlyweb.util import LockError, write_lock, write_unlock, \
         read_utf8_file, write_utf8_file
@@ -21,29 +22,18 @@ class Store(TextStore):
         except InvalidGitRepositoryError:
             self.repo = Repo.init(self._root)
 
-    def tiddler_get(self, tiddler): # XXX: prone to race condition due to separate Git operation?!
+    def tiddler_get(self, tiddler):
         tiddler_filename = self._tiddler_base_filename(tiddler)
         tiddler = self._read_tiddler_file(tiddler, tiddler_filename)
+        revision = self._commit_for_file(tiddler_filename)
+        tiddler.revision = revision.hexsha
 
-        revision = self._commit_hash_for_file(tiddler_filename)
-        tiddler.revision = revision
+        self._set_creates(tiddler)
 
         return tiddler
 
-
-    def _commit_hash_for_file(self, path):
-        """
-        Ask tree for the latest commit for this path.
-        """
-        commits = list(self.repo.iter_commits(paths=path, max_count=1))
-        try:
-            return commits[0].hexsha
-        except IndexError:
-            return '0'
-
     def tiddler_put(self, tiddler):
         tiddler_filename = self._tiddler_base_filename(tiddler)
-        print "\nTIDDLER PUT", tiddler_filename
 
         # the following section is copied almost verbatim from the text store
         # TODO: refactor the text store for granular reusability
@@ -62,23 +52,6 @@ class Store(TextStore):
         # Protect against incoming tiddlers that have revision set. Since we are
         # putting a new one, we want the system to calculate.
         tiddler.revision = None
-
-        # store original creator and created
-        try:
-            print "AAA"
-            #import pdb; pdb.set_trace()
-            modifier = tiddler.modifier
-            #modified = tiddler.modified
-            current_revision = self._read_tiddler_file(tiddler, tiddler_filename)
-            tiddler.modifier = modifier
-            #tiddler.modified = modified
-            tiddler.creator = current_revision.creator
-            tiddler.created = current_revision.created
-            print "aaa", tiddler.creator, tiddler.modifier
-        except IOError, exc: # first revision
-            tiddler.creator = tiddler.modifier
-            tiddler.created = tiddler.modified
-            print "BBB", tiddler.creator, tiddler.created
 
         self.serializer.object = tiddler
         write_utf8_file(tiddler_filename, self.serializer.to_string())
@@ -106,3 +79,31 @@ class Store(TextStore):
         index.write()
 
         tiddler.revision = commit.hexsha
+
+    def _commit_for_file(self, path, first_rev=False):
+        """
+        Ask tree for the latest commit for this path.
+        """
+        if first_rev:
+            commits = list(self.repo.iter_commits(paths=path))
+            index = -1
+        else:
+            commits = list(self.repo.iter_commits(paths=path, max_count=1))
+            index = 0
+        try:
+            return commits[index]
+        except IndexError:
+            return None
+
+    def _set_creates(self, tiddler):
+        tiddler_filename = self._tiddler_base_filename(tiddler)
+        first_revision = self._commit_for_file(tiddler_filename,
+                first_rev=True)
+
+        relative_path = tiddler_filename.replace(self._root, '')[1:]
+        tiddler_string = first_revision.tree[relative_path].data_stream.read(1024)
+        first_tiddler = Tiddler(tiddler.title, tiddler.bag)
+        self.serializer.object = first_tiddler
+        first_tiddler = self.serializer.from_string(tiddler_string)
+        tiddler.created = first_tiddler.modified
+        tiddler.creator = first_tiddler.modifier

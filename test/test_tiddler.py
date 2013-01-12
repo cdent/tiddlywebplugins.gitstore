@@ -1,5 +1,6 @@
 import os
 import subprocess
+import time
 
 from tiddlyweb.model.bag import Bag
 from tiddlyweb.model.tiddler import Tiddler
@@ -62,7 +63,6 @@ def test_tiddler_get():
 
 
 def test_tiddler_creation_info():
-    print "=" * 80
     bag = Bag('alpha')
     STORE.put(bag)
 
@@ -70,6 +70,8 @@ def test_tiddler_creation_info():
     tiddler.text = 'lorem ipsum'
     tiddler.modifier = 'john'
     STORE.put(tiddler)
+
+    time.sleep(.5)
 
     tiddler = Tiddler('Foo', bag.name)
     tiddler.text = 'lorem ipsum\ndolor sit amet'
@@ -81,7 +83,6 @@ def test_tiddler_creation_info():
     assert tiddler.creator == 'john'
     assert tiddler.modifier == 'jane'
     assert tiddler.created != tiddler.modified
-    print "-" * 80
 
 
 def run(cmd, *args, **kwargs):
