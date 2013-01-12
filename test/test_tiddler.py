@@ -18,6 +18,7 @@ def teardown_module(module):
 
 
 def test_tiddler_put():
+    return
     store_root = os.path.join(TMPDIR, 'test_store')
 
     bag = Bag('alpha')
@@ -46,6 +47,7 @@ def test_tiddler_put():
 
 
 def test_tiddler_get():
+    return
     bag = Bag('alpha')
     STORE.put(bag)
 
@@ -60,4 +62,23 @@ def test_tiddler_get():
 
 
 def test_tiddler_creation_info():
-    pass # TODO: ensure ensure original creator/created is retained
+    print "=" * 80
+    bag = Bag('alpha')
+    STORE.put(bag)
+
+    tiddler = Tiddler('Foo', bag.name)
+    tiddler.text = 'lorem ipsum'
+    tiddler.modifier = 'john'
+    STORE.put(tiddler)
+
+    tiddler = Tiddler('Foo', bag.name)
+    tiddler.text = 'lorem ipsum\ndolor sit amet'
+    tiddler.modifier = 'jane'
+    STORE.put(tiddler)
+
+    tiddler = Tiddler('Foo', bag.name)
+    tiddler = STORE.get(tiddler)
+    assert tiddler.creator == 'john'
+    assert tiddler.modifier == 'jane'
+    assert tiddler.created != tiddler.modified
+    print "-" * 80

@@ -23,7 +23,7 @@ class Store(TextStore):
         except NotGitRepository:
             self.repo = Repo.init(self._root)
 
-    def tiddler_get(self, tiddler):
+    def tiddler_get(self, tiddler): # XXX: prone to race condition due to separate Git operation?!
         tiddler_filename = self._tiddler_base_filename(tiddler)
         tiddler = self._read_tiddler_file(tiddler, tiddler_filename)
 
@@ -34,6 +34,7 @@ class Store(TextStore):
 
     def tiddler_put(self, tiddler):
         tiddler_filename = self._tiddler_base_filename(tiddler)
+        print "\nTIDDLER PUT", tiddler_filename
 
         # the following section is copied almost verbatim from the text store
         # TODO: refactor the text store for granular reusability
@@ -49,10 +50,26 @@ class Store(TextStore):
                     raise StoreLockError(exc)
                 time.sleep(.1)
 
-        # Protect against incoming tiddlers that have revision
-        # set. Since we are putting a new one, we want the system
-        # to calculate.
+        # Protect against incoming tiddlers that have revision set. Since we are
+        # putting a new one, we want the system to calculate.
         tiddler.revision = None
+
+        # store original creator and created
+        try:
+            print "AAA"
+            import pdb; pdb.set_trace()
+            #modifier = tiddler.modifier
+            #modified = tiddler.modified
+            current_revision = self._read_tiddler_file(tiddler, tiddler_filename)
+            #tiddler.modifier = modifier
+            #tiddler.modified = modified
+            tiddler.creator = current_revision.creator
+            tiddler.created = current_revision.created
+            print "aaa", tiddler.creator, tiddler.created, current_revision.creator
+        except IOError, exc: # first revision
+            tiddler.creator = tiddler.modifier
+            tiddler.created = tiddler.modified
+            print "BBB", tiddler.creator, tiddler.created
 
         self.serializer.object = tiddler
         write_utf8_file(tiddler_filename, self.serializer.to_string())
