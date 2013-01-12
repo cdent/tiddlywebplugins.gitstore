@@ -57,15 +57,15 @@ class Store(TextStore):
         # store original creator and created
         try:
             print "AAA"
-            import pdb; pdb.set_trace()
-            #modifier = tiddler.modifier
+            #import pdb; pdb.set_trace()
+            modifier = tiddler.modifier
             #modified = tiddler.modified
             current_revision = self._read_tiddler_file(tiddler, tiddler_filename)
-            #tiddler.modifier = modifier
+            tiddler.modifier = modifier
             #tiddler.modified = modified
             tiddler.creator = current_revision.creator
             tiddler.created = current_revision.created
-            print "aaa", tiddler.creator, tiddler.created, current_revision.creator
+            print "aaa", tiddler.creator, tiddler.modifier
         except IOError, exc: # first revision
             tiddler.creator = tiddler.modifier
             tiddler.created = tiddler.modified
