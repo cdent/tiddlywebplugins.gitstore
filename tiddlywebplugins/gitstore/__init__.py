@@ -4,10 +4,8 @@ TiddlyWeb store implementation using Git - based on the default text store, this
 store uses Git to keep track of tiddler revisions
 """
 
-import subprocess
-
-from dulwich.repo import Repo
-from dulwich.errors import NotGitRepository
+from git import Repo
+from git.exc import InvalidGitRepositoryError
 
 from tiddlyweb.stores.text import Store as TextStore
 from tiddlyweb.util import LockError, write_lock, write_unlock, \
@@ -20,17 +18,28 @@ class Store(TextStore):
         super(Store, self).__init__(store_config, environ)
         try:
             self.repo = Repo(self._root)
-        except NotGitRepository:
+        except InvalidGitRepositoryError:
             self.repo = Repo.init(self._root)
 
     def tiddler_get(self, tiddler):
         tiddler_filename = self._tiddler_base_filename(tiddler)
         tiddler = self._read_tiddler_file(tiddler, tiddler_filename)
 
-        revision = run('git', 'log', '-n1', '--format=%H', cwd=self._root) # TODO: should be handled via Dulwich
-        tiddler.revision = revision.strip()
+        revision = self._commit_hash_for_file(tiddler_filename)
+        tiddler.revision = revision
 
         return tiddler
+
+
+    def _commit_hash_for_file(self, path):
+        """
+        Ask tree for the latest commit for this path.
+        """
+        commits = list(self.repo.iter_commits(paths=path, max_count=1))
+        try:
+            return commits[0].hexsha
+        except IndexError:
+            return '0'
 
     def tiddler_put(self, tiddler):
         tiddler_filename = self._tiddler_base_filename(tiddler)
@@ -63,22 +72,20 @@ class Store(TextStore):
         if host.endswith(':80'): # TODO: use proper URI parsing instead
             host = host[:-3]
         user = self.environ['tiddlyweb.usersign']['name']
-        author = '%s <%s@%s>' % (user, user, host)
+
+# XXX can't figure out how to set author and committer
+# teh internets suggest using os.environ, but doing so will mess
+# up the _time_ on the commit, which is hilarious. Doing a raw
+# commit (that is going into what index.commit does and replicating
+# it here) is very cumbersome). More research required.
+        author = 'user <%s@%s>' % (user, host)
         committer = 'tiddlyweb <tiddlyweb@%s>' % host
-        message = 'tiddler put' # XXX: too technical?
+        message = 'tiddler %s:%s put' % (tiddler.bag, tiddler.title)
 
-        relative_path = tiddler_filename.replace(self._root, '')[1:] # TODO: use os.path.relpath
-        self.repo.stage([relative_path])
-        commit_id = self.repo.do_commit(message, author=author,
-                committer=committer)
+        relative_path = tiddler_filename.replace(self._root, '')[1:]
+        index = self.repo.index
+        index.add([relative_path])
+        commit = index.commit(message)
+        index.write()
 
-        tiddler.revision = commit_id # TODO: use abbreviated commit hash
-
-
-def run(cmd, *args, **kwargs):
-    """
-    execute a command, passing `args` to that command and using `kwargs` for
-    configuration of `Popen`, returning the respective output
-    """
-    args = [cmd] + list(args)
-    return subprocess.check_output(args, **kwargs)
+        tiddler.revision = commit.hexsha

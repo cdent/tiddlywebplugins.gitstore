@@ -31,4 +31,5 @@ def store_setup():
 
 
 def store_teardown(tmpdir):
-    shutil.rmtree(tmpdir)
+    #shutil.rmtree(tmpdir)
+    print 'TMPDIR', tmpdir

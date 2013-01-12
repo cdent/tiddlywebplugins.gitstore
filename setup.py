@@ -19,7 +19,7 @@ META = {
     'platforms': 'Posix; MacOS X; Windows',
     'include_package_data': False,
     'zip_safe': False,
-    'install_requires': ['tiddlyweb', 'tiddlywebplugins.utils', 'dulwich'],
+    'install_requires': ['tiddlyweb', 'tiddlywebplugins.utils', 'GitPython'],
     'extras_require': {
         'testing': ['pytest'],
         'coverage': ['figleaf', 'coverage']
